@@ -1,0 +1,68 @@
+services:
+  webapp-db:
+    image: postgres:16
+    container_name: salon-webapp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${WEBAPP_DB_NAME}
+      POSTGRES_USER: ${WEBAPP_DB_USER}
+      POSTGRES_PASSWORD: ${WEBAPP_DB_PASSWORD}
+    volumes:
+      - webapp_db_data:/var/lib/postgresql/data
+      - ./database/init-webapp.sql:/docker-entrypoint-initdb.d/init-webapp.sql
+    networks:
+      - salon-network
+
+  webapp:
+    build:
+      context: ../Proyecto-Final-Salon-de-Belleza
+      dockerfile: ../Proyecto-Final-Salon-Deployment/webapp/Dockerfile
+    container_name: salon-webapp
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://${WEBAPP_DB_USER}:${WEBAPP_DB_PASSWORD}@webapp-db:5432/${WEBAPP_DB_NAME}
+      API_URL: http://api:8000
+    depends_on:
+      - webapp-db
+      - api
+    networks:
+      - salon-network
+
+  api-db:
+    image: postgres:16
+    container_name: salon-api-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${API_DB_NAME}
+      POSTGRES_USER: ${API_DB_USER}
+      POSTGRES_PASSWORD: ${API_DB_PASSWORD}
+    volumes:
+      - api_db_data:/var/lib/postgresql/data
+      - ./database/init-api.sql:/docker-entrypoint-initdb.d/init-api.sql
+    networks:
+      - salon-network
+
+  api:
+    build:
+      context: ../Proyecto-Final-Salon-API
+      dockerfile: ../Proyecto-Final-Salon-Deployment/api/Dockerfile
+    container_name: salon-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${API_DB_USER}:${API_DB_PASSWORD}@api-db:5432/${API_DB_NAME}
+    depends_on:
+      - api-db
+    networks:
+      - salon-network
+
+volumes:
+  webapp_db_data:
+  api_db_data:
+
+networks:
+  salon-network:
+    driver: bridge
