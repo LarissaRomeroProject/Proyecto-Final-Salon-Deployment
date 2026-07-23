@@ -12,23 +12,16 @@ services:
       - ./database/init-webapp.sql:/docker-entrypoint-initdb.d/init-webapp.sql
     networks:
       - salon-network
-
-  webapp:
-    build:
-      context: ../Proyecto-Final-Salon-de-Belleza
-      dockerfile: ../Proyecto-Final-Salon-Deployment/webapp/Dockerfile
-    container_name: salon-webapp
-    restart: unless-stopped
-    ports:
-      - "5000:5000"
-    environment:
-      DATABASE_URL: postgresql://${WEBAPP_DB_USER}:${WEBAPP_DB_PASSWORD}@webapp-db:5432/${WEBAPP_DB_NAME}
-      API_URL: http://api:8000
-    depends_on:
-      - webapp-db
-      - api
-    networks:
-      - salon-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${WEBAPP_DB_USER} -d ${WEBAPP_DB_NAME}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   api-db:
     image: postgres:16
@@ -43,6 +36,16 @@ services:
       - ./database/init-api.sql:/docker-entrypoint-initdb.d/init-api.sql
     networks:
       - salon-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${API_DB_USER} -d ${API_DB_NAME}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   api:
     build:
@@ -55,7 +58,37 @@ services:
     environment:
       DATABASE_URL: postgresql://${API_DB_USER}:${API_DB_PASSWORD}@api-db:5432/${API_DB_NAME}
     depends_on:
-      - api-db
+      api-db:
+        condition: service_healthy
+    networks:
+      - salon-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  webapp:
+    build:
+      context: ../Proyecto-Final-Salon-de-Belleza
+      dockerfile: ../Proyecto-Final-Salon-Deployment/webapp/Dockerfile
+    container_name: salon-webapp
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://${WEBAPP_DB_USER}:${WEBAPP_DB_PASSWORD}@webapp-db:5432/${WEBAPP_DB_NAME}
+      API_URL: http://api:8000
+    depends_on:
+      webapp-db:
+        condition: service_healthy
+      api:
+        condition: service_healthy
     networks:
       - salon-network
 
